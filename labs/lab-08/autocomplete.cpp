@@ -7,8 +7,8 @@
 //
 // Containers you'll need:
 //   #include <set>            → std::set<std::string>
-//   #include <map>            → std::map<std::string, int>
-//   #include <queue>          → std::priority_queue<std::pair<int,std::string>>
+//   #include <map>            → std::map<std::string, long long>
+//   #include <queue>          → std::priority_queue<std::pair<long long,std::string>>
 //
 // Compile (no tests):
 //   g++ -std=c++17 -Wall -Werror -o autocomplete autocomplete.cpp
@@ -45,7 +45,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 void loadDictionary(const std::string& filename,
                     std::set<std::string>& words,
-                    std::map<std::string, int>& freq) {
+                    std::map<std::string, long long>& freq) {
     // TODO: open the file with std::ifstream
     // TODO: read each line — extract the word and frequency
     // TODO: insert word into `words`, store frequency in `freq`
@@ -76,7 +76,7 @@ void loadDictionary(const std::string& filename,
 // ─────────────────────────────────────────────────────────────────────────────
 std::vector<std::string> autocomplete(const std::string& prefix,
                                        const std::set<std::string>& words,
-                                       const std::map<std::string, int>& freq,
+                                       const std::map<std::string, long long>& freq,
                                        int n) {
     std::vector<std::string> results;
 
@@ -103,7 +103,7 @@ std::vector<std::string> autocomplete(const std::string& prefix,
 #ifndef TESTING
 int main() {
     std::set<std::string> words;
-    std::map<std::string, int> freq;
+    std::map<std::string, long long> freq;
 
     // TODO: call loadDictionary with the path to data/words.txt
     //       print how many words were loaded

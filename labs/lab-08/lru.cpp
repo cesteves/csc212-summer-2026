@@ -35,11 +35,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 void loadDictionary(const std::string& filename,
                     std::set<std::string>& words,
-                    std::map<std::string, int>& freq);
+                    std::map<std::string, long long>& freq);
 
 std::vector<std::string> autocomplete(const std::string& prefix,
                                        const std::set<std::string>& words,
-                                       const std::map<std::string, int>& freq,
+                                       const std::map<std::string, long long>& freq,
                                        int n);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,13 +141,13 @@ double LRUCache::hitRate() const {
 
 void loadDictionary(const std::string& filename,
                     std::set<std::string>& words,
-                    std::map<std::string, int>& freq) {
+                    std::map<std::string, long long>& freq) {
     // TODO: same implementation as in autocomplete.cpp
 }
 
 std::vector<std::string> autocomplete(const std::string& prefix,
                                        const std::set<std::string>& words,
-                                       const std::map<std::string, int>& freq,
+                                       const std::map<std::string, long long>& freq,
                                        int n) {
     // TODO: same implementation as in autocomplete.cpp
     return {};
@@ -161,7 +161,7 @@ std::vector<std::string> autocomplete(const std::string& prefix,
 #ifndef TESTING
 int main() {
     std::set<std::string> words;
-    std::map<std::string, int> freq;
+    std::map<std::string, long long> freq;
 
     // TODO: loadDictionary("data/words.txt", words, freq);
     //       print how many words loaded
