@@ -63,10 +63,10 @@ static bool contains(const std::vector<std::string>& vec,
 // Returns true if vec[i] has frequency >= that of vec[i+1] for all i.
 // (Checks that results are non-increasing in frequency.)
 static bool isSortedByFreqDesc(const std::vector<std::string>& vec,
-                                const std::map<std::string, int>& freq) {
+                                const std::map<std::string, long long>& freq) {
     for (size_t i = 1; i < vec.size(); ++i) {
-        int f_prev = freq.count(vec[i-1]) ? freq.at(vec[i-1]) : 0;
-        int f_cur  = freq.count(vec[i])   ? freq.at(vec[i])   : 0;
+        long long f_prev = freq.count(vec[i-1]) ? freq.at(vec[i-1]) : 0;
+        long long f_cur  = freq.count(vec[i])   ? freq.at(vec[i])   : 0;
         if (f_prev < f_cur) return false;
     }
     return true;
@@ -88,7 +88,7 @@ void test_loadDictionary() {
     );
 
     std::set<std::string> words;
-    std::map<std::string, int> freq;
+    std::map<std::string, long long> freq;
     loadDictionary(path, words, freq);
 
     CHECK("loadDictionary: file loads without error",  2, !words.empty());
@@ -116,7 +116,7 @@ void test_autocomplete() {
     );
 
     std::set<std::string> words;
-    std::map<std::string, int> freq;
+    std::map<std::string, long long> freq;
     loadDictionary(path, words, freq);
 
     // ── empty prefix returns top-N ────────────────────────────────────────
