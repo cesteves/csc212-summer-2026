@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <filesystem>
 
 static int tests_run     = 0;
 static int tests_passed  = 0;
@@ -47,10 +48,11 @@ static int points_total  = 0;
 // Build a small in-memory word list without touching the filesystem.
 // We write a temp file because loadDictionary takes a filename.
 static std::string writeTempDict(const std::string& content) {
-    const std::string path = "/tmp/csc212_lab09_test_dict.txt";
+    std::filesystem::path path = std::filesystem::temp_directory_path() / "csc212_lab09_test_dict.txt";
+
     std::ofstream f(path);
     f << content;
-    return path;
+    return path.string();
 }
 
 // Returns true if `vec` contains `word`.
@@ -244,16 +246,16 @@ void test_lrucache() {
 // main
 // ─────────────────────────────────────────────────────────────────────────────
 int main() {
-    std::cout << "── loadDictionary tests ──────────────────\n";
+    std::cout << "------ loadDictionary tests ------------\n";
     test_loadDictionary();
 
-    std::cout << "\n── autocomplete tests ────────────────────\n";
+    std::cout << "\n------ autocomplete tests ------------\n";
     test_autocomplete();
 
-    std::cout << "\n── LRUCache tests ────────────────────────\n";
+    std::cout << "\n------ LRUCache tests ------------\n";
     test_lrucache();
 
-    std::cout << "\n─────────────────────────────────────────\n";
+    std::cout << "----------------------------------\n";
     std::cout << tests_passed << "/" << tests_run << " tests passed.\n";
     std::cout << "Score: " << points_earned << "/" << points_total << " pts\n";
 
