@@ -1,19 +1,19 @@
-# Lab 10 - Graph Traversal: Adjacency List, DFS, and BFS
+# Lab 10 - Graphs: Adjacency List, Save/Load, Cycle Detection, and Shortest Path
 
 ## Overview
 
-This lab builds a small **graph** class from scratch and uses it to explore the two
-fundamental traversal strategies: **depth-first search (DFS)** and **breadth-first
-search (BFS)**. By the end you will understand how a graph is represented in memory,
-how each traversal decides which vertex to visit next, and why that single decision
-produces two very different exploration orders over the same graph.
+This lab builds a small **graph** class from scratch and uses it to explore four
+core graph skills: representing a graph in memory, persisting it to disk, detecting
+cycles with **depth-first search (DFS)**, and finding a shortest path with
+**breadth-first search (BFS)**.
 
 The `Graph` interface is fixed for you in `graph.h`. Your job is to implement it in
-`graph.cpp`, organized into three parts:
+`graph.cpp`, organized into four parts:
 
 - **Part 1**: Build the adjacency list representation (constructor, `add_edge`, `vertex_count`, `neighbors`)
-- **Part 2**: Implement depth-first search (`dfs`)
-- **Part 3**: Implement breadth-first search (`bfs`)
+- **Part 2**: Save a graph to a text file and load one back (`save_to_file`, `load_from_file`)
+- **Part 3**: Use DFS to detect whether a graph contains a cycle (`has_cycle`, `_has_cycle_visit`)
+- **Part 4**: Use BFS to find a shortest path between two vertices (`shortest_path`)
 
 `tester.cpp` is provided **complete** - you do not write or modify any tests. Compile
 it against your `graph.cpp` and run it as you go to check your work.
@@ -104,12 +104,107 @@ Return the number of vertices in the graph.
 - **`const std::vector<int>& neighbors(int v) const`**
 Return the chain of vertices adjacent to `v`.
 
-## Part 2: DFS (Depth-First Search)
+## Part 2: Saving and Loading a Graph
 
-**Depth-first search** explores as far as possible along one path before backtracking.
-Starting from a vertex, it picks an unvisited neighbor, moves there, and immediately
-repeats the process from the new vertex - only backing up once it hits a dead end
-(every neighbor already visited).
+A graph you build in memory disappears the moment your program exits. To hand a
+graph off between programs (or just to save one for later), you'll write it to a
+plain text file as an **edge list**, and read it back the same way.
+
+### File format
+
+```text
+5
+0 1
+0 2
+1 3
+3 4
+```
+
+- The **first line** is the number of vertices.
+- Every line after that is a single undirected edge, written as two integers `u v`
+  separated by a space.
+- Each undirected edge appears **exactly once** in the file (never both `u v` and
+  `v u` for the same edge).
+
+The diamond graph from Part 1 would be written exactly as shown above.
+
+### Your work: save / load
+
+Implement the two methods marked `// TODO` under **Section 2** in `graph.cpp`.
+
+- **`void save_to_file(const std::string& filename) const`**
+Opens an `std::ofstream` on `filename`, writes `vertex_count()` on the first line,
+then writes one `u w` line for every edge - for each vertex `u`, for every neighbor
+`w` of `u` with `w >= u`. The `w >= u` check is what keeps you from writing the same
+edge twice.
+
+- **`static Graph load_from_file(const std::string& filename)`**
+Opens an `std::ifstream` on `filename`, reads the vertex count from the first line
+to construct the `Graph`, then reads `u v` integer pairs for the rest of the file -
+calling `add_edge(u, v)` for each one - until the stream is exhausted.
+
+> [!NOTE]
+> `while (fin >> u >> v)` is a clean way to read pairs of integers until end-of-file:
+> the `>>` extraction fails (and the loop stops) once there's nothing left to read.
+
+> [!WARNING]
+> `load_from_file` is `static` - it doesn't run on an existing `Graph`, it *builds and
+> returns* a new one. Call it as `Graph::load_from_file("path.txt")`, not on an
+> instance.
+
+## Part 3: Cycle Detection (DFS)
+
+A **cycle** is a path that starts and ends at the same vertex without reusing any
+edge along the way. Detecting cycles matters for all sorts of practical questions:
+does this dependency graph have a circular dependency? Does this course
+prerequisite chart contain a contradiction?
+
+```text
+0 --- 1          0 --- 1
+      |          |     |
+2 --- 3 --- 4    2 --- 3 --- 4
+(no cycle)       (cycle: 0-1-3-2-0)
+```
+
+### The idea
+
+DFS naturally finds cycles because of one simple rule: while exploring, if you ever
+reach a vertex that is **already visited** through an edge that **isn't the one you
+just arrived on**, you've found a cycle. Reaching your own parent back through the
+same edge you came from doesn't count - that's just backtracking, not a cycle.
+
+This is why `_has_cycle_visit` needs to know its `parent`: without it, DFS could not
+tell the difference between "I looped back to an ancestor" (a cycle) and "I stepped
+back to the vertex I came from" (completely normal).
+
+> [!NOTE]
+> A graph doesn't have to be fully connected. `has_cycle()` must check **every**
+> vertex, not just the ones reachable from vertex `0` - a graph can be cycle-free
+> near vertex `0` but contain a cycle in some entirely separate component.
+
+### Your work: cycle detection
+
+Implement the two methods marked `// TODO` under **Section 3** in `graph.cpp`.
+
+- **`bool _has_cycle_visit(int v, int parent, std::vector<bool>& visited) const`** *(private helper)*
+Marks `v` visited. For every neighbor `n` of `v`: if `n` hasn't been visited, recurse
+into it (with `v` as the new parent) and return `true` if that recursive call finds
+a cycle; otherwise, if `n` *has* been visited and `n != parent`, a cycle has been
+found - return `true`. Returns `false` if nothing triggers a cycle.
+
+- **`bool has_cycle() const`**
+Sets up a `visited` vector (all `false`, sized to `vertex_count()`), then loops over
+every vertex; for any vertex not yet visited, calls `_has_cycle_visit(vertex, -1,
+visited)`. Returns `true` the moment any call reports a cycle, and `false` if every
+component finishes cycle-free.
+
+## Part 4: Shortest Path (BFS)
+
+Once a graph is loaded into memory, one of the most common questions to ask is:
+what's the fewest number of edges I need to cross to get from vertex `A` to vertex
+`B`? Because BFS explores level by level - every vertex at distance 1 before any
+vertex at distance 2, and so on - the first time it reaches a vertex is guaranteed
+to be by a shortest path.
 
 ```text
 0 --- 1
@@ -117,70 +212,42 @@ repeats the process from the new vertex - only backing up once it hits a dead en
 2 --- 3 --- 4
 ```
 
-Starting a DFS at vertex `0` might visit `0, 1, 3, 2, 4`: it dives from `0` into `1`,
-from `1` into `3`, then keeps diving into `3`'s unvisited neighbors before ever
-returning to explore anything back near `0`.
+The shortest path from `0` to `4` has to pass through `3` (there's no shorter route),
+so it looks like `0, 1, 3, 4` or `0, 2, 3, 4` - either is correct, since both are
+length 4.
 
-DFS is naturally written **recursively**: visiting a vertex means marking it visited,
-recording it, and then recursively visiting every unvisited neighbor.
+### The idea
 
-> [!NOTE]
-> Because recursion uses the **call stack** to remember where to backtrack to, DFS is
-> sometimes described as "stack-based" even when written recursively - the call stack
-> *is* the stack.
-
-### Your work: DFS
-
-Implement the two methods marked `// TODO` under **Section 2** in `graph.cpp`.
-
-- **`void _dfs_visit(int v, std::vector<bool>& visited, std::vector<int>& order) const`** *(private helper)*
-Marks `v` visited, appends it to `order`, then recursively calls itself on every
-neighbor of `v` that has not yet been visited.
-
-- **`std::vector<int> dfs(int start) const`**
-Sets up a `visited` vector (all `false`, sized to `vertex_count()`) and an empty
-`order` vector, kicks off the traversal with `_dfs_visit(start, visited, order)`, and
-returns `order`. `start` is always a valid vertex.
-
-## Part 3: BFS (Breadth-First Search)
-
-**Breadth-first search** explores level by level: it visits every neighbor of the
-start vertex before visiting any of *their* neighbors, then every vertex two edges
-away before any vertex three edges away, and so on.
-
-Starting a BFS at vertex `0` in the same graph visits `0`, then both of `0`'s direct
-neighbors (`1` and `2`, in whatever order they appear in `adj[0]`), then `3` (reachable
-through either of them), and finally `4`. Every vertex at distance `1` from the start
-is visited before any vertex at distance `2`.
-
-BFS is naturally written **iteratively** using a `std::queue<int>` as the frontier:
-vertices are visited in the order they are discovered, first-in-first-out.
-
-> [!NOTE]
-> `std::queue` supports `push`, `front`, and `pop`. Pushing a vertex adds it to the
-> back of the line; `front()` and `pop()` together let you process and remove the
-> vertex currently at the head of the line. Remember to `#include <queue>` at the
-> top of `graph.cpp` - it isn't included for you.
+BFS with a `std::queue<int>` visits vertices in the order they're discovered. To
+recover the *path*, not just the *distance*, track a `parent` array alongside
+`visited`: whenever you discover vertex `n` for the first time while processing
+vertex `v`, record `parent[n] = v`. Once BFS finishes, walk backwards from `end`
+through `parent` until you reach `start`, then reverse what you collected.
 
 > [!WARNING]
 > Mark a vertex visited **the moment you push it onto the queue**, not when you pop
 > it. If you wait until popping to mark a vertex visited, the same vertex can be
-> pushed onto the queue multiple times before it's ever processed.
+> pushed onto the queue multiple times before it's ever processed - and the first
+> `parent` you recorded for it (which is what makes the path shortest) can get
+> overwritten incorrectly.
 
-### Your work: BFS
+### Your work: shortest path
 
-Implement the method marked `// TODO` under **Section 3** in `graph.cpp`.
+Implement the method marked `// TODO` under **Section 4** in `graph.cpp`.
 
-- **`std::vector<int> bfs(int start) const`**
-Sets up a `visited` vector, an empty `order` vector, and a `std::queue<int>`. Marks
-`start` visited and pushes it onto the queue. While the queue is not empty: pops the
-front vertex, appends it to `order`, and pushes every one of its unvisited neighbors
-onto the queue (marking each visited as it's pushed). Returns `order`.
+- **`std::vector<int> shortest_path(int start, int end) const`**
+If `start == end`, returns a one-element vector containing just that vertex. Otherwise,
+sets up `visited` and `parent` vectors (sized to `vertex_count()`, with every entry of
+`parent` starting at `-1`) and a `std::queue<int>`. Marks `start` visited and pushes it.
+Runs a standard BFS, recording `parent[n] = v` for every newly-discovered vertex `n`.
+If `end` was never visited, returns an empty vector - there's no path. Otherwise,
+reconstructs the path by following `parent` backwards from `end` to `start`, then
+reverses it before returning.
 
 ## Running the tester
 
 `tester.cpp` is already complete. Compile it together with your `graph.cpp` and run it
-after implementing each method, not only at the end.
+after implementing each part, not only at the end.
 
 ```bash
 # Compile
@@ -207,25 +274,27 @@ adjacency list tests
 [PASS] neighbors: vertex with no edges is empty (2/2 pts)
 [PASS] add_edge: multiple edges accumulate correctly (2/2 pts)
 
-DFS tests
-[PASS] dfs: start vertex is visited first (2/2 pts)
-[PASS] dfs: visits every vertex in a connected graph (3/3 pts)
-[PASS] dfs: each vertex appears exactly once (2/2 pts)
-[PASS] dfs: unreachable vertices are excluded (3/3 pts)
+save/load tests
+[PASS] save/load: round trip preserves vertex_count (2/2 pts)
+[PASS] save/load: round trip preserves every vertex's neighbor set (3/3 pts)
+[PASS] save/load: isolated vertex stays isolated after round trip (2/2 pts)
+[PASS] load: hand-written edge list parses correctly (3/3 pts)
 
-BFS tests
-[PASS] bfs: start vertex is visited first (2/2 pts)
-[PASS] bfs: visits every vertex in a connected graph (3/3 pts)
-[PASS] bfs: each vertex appears exactly once (2/2 pts)
-[PASS] bfs: unreachable vertices are excluded (3/3 pts)
+cycle detection tests
+  [case] tree has no cycle: correct
+  [case] diamond graph has a cycle: correct
+  [case] single vertex, no edges, has no cycle: correct
+  [case] disconnected forest has no cycle: correct
+  [case] cycle in one component of a disconnected graph is found: correct
+[PASS] has_cycle: correctly classifies every case above (all must be correct) (10/10 pts)
 
-edge case tests
-[PASS] edge: single-vertex graph, dfs visits only itself (2/2 pts)
-[PASS] edge: single-vertex graph, bfs visits only itself (2/2 pts)
-[PASS] edge: dfs and bfs visit the same set of vertices (3/3 pts)
-[PASS] edge: bfs respects distance order (closer before farther) (3/3 pts)
+shortest path tests
+[PASS] shortest_path: start == end returns just that vertex (2/2 pts)
+[PASS] shortest_path: diamond graph 0->4 has correct length and endpoints (3/3 pts)
+[PASS] shortest_path: every step of the returned path follows a real edge (2/2 pts)
+[PASS] shortest_path: distinguishes an unreachable vertex from a reachable one in the same graph (3/3 pts)
 
-17/17 tests passed.
+14/14 tests passed.
 Score: 40/40 pts
 ```
 

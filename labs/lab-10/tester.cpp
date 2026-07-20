@@ -1,5 +1,5 @@
 // tester.cpp
-// Lab 10 - Graph Traversal Unit Tester
+// Lab 10 - Graphs Unit Tester
 // CSC 212 Data Structures
 //
 // This tester is complete - you do not need to modify it. Implement Graph in
@@ -13,6 +13,8 @@
 #include "graph.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <set>
 #include <vector>
@@ -43,9 +45,20 @@ bool has(const std::vector<int>& v, int x) {
     return std::find(v.begin(), v.end(), x) != v.end();
 }
 
-// Helper: index of `x` within `v` (used to compare traversal order)
-long pos(const std::vector<int>& v, int x) {
-    return std::find(v.begin(), v.end(), x) - v.begin();
+// Helper: sorted copy, for comparing neighbor lists without caring about order
+std::vector<int> sorted_copy(std::vector<int> v) {
+    std::sort(v.begin(), v.end());
+    return v;
+}
+
+// Helper: is `path` a genuine walk through `g` - i.e. is every consecutive
+// pair of vertices actually connected by an edge?
+bool is_valid_walk(const Graph& g, const std::vector<int>& path) {
+    if (path.empty()) return false;
+    for (std::size_t i = 0; i + 1 < path.size(); ++i) {
+        if (!has(g.neighbors(path[i]), path[i + 1])) return false;
+    }
+    return true;
 }
 
 // Builds the diamond-shaped graph used throughout this tester:
@@ -54,7 +67,7 @@ long pos(const std::vector<int>& v, int x) {
 //   |     |
 //   2 --- 3 --- 4
 //
-// Every vertex is reachable from vertex 0.
+// Every vertex is reachable from vertex 0, and 0-1-3-2-0 is a cycle.
 Graph make_diamond() {
     Graph g(5);
     g.add_edge(0, 1);
@@ -65,24 +78,41 @@ Graph make_diamond() {
     return g;
 }
 
-// Same diamond, plus an isolated vertex 5 with no edges at all.
-Graph make_diamond_with_isolated_vertex() {
+// A 6-vertex tree (no cycles): 0 is connected to 1 and 2; 1 is connected to
+// 3 and 4; 2 is connected to 5. There is exactly one path between any pair
+// of vertices, so no cycle exists anywhere in this graph.
+Graph make_tree() {
     Graph g(6);
     g.add_edge(0, 1);
     g.add_edge(0, 2);
     g.add_edge(1, 3);
-    g.add_edge(2, 3);
+    g.add_edge(1, 4);
+    g.add_edge(2, 5);
+    return g;
+}
+
+// Two disconnected trees: {0,1,2} and {3,4}. No cycles anywhere.
+Graph make_disconnected_no_cycle() {
+    Graph g(5);
+    g.add_edge(0, 1);
+    g.add_edge(1, 2);
     g.add_edge(3, 4);
+    return g;
+}
+
+// Two disconnected components: a triangle {0,1,2} (a cycle) and a tree {3,4,5}.
+Graph make_disconnected_with_cycle() {
+    Graph g(6);
+    g.add_edge(0, 1);
+    g.add_edge(1, 2);
+    g.add_edge(2, 0);
+    g.add_edge(3, 4);
+    g.add_edge(4, 5);
     return g;
 }
 
 // ===========================================================================
 // Section 1: adjacency list  (10 pts)
-//
-// Tests that the graph is constructed with the right number of vertices,
-// that add_edge() updates both endpoints (the graph is undirected), that a
-// vertex with no edges reports empty neighbors, and that repeated calls to
-// add_edge() on the same vertex all accumulate.
 void test_adjacency_list() {
     Graph g(5);
     CHECK("vertex_count: matches constructor argument", 2,
@@ -97,7 +127,6 @@ void test_adjacency_list() {
     CHECK("add_edge: u appears in neighbors(v) (undirected)", 2,
           has(g2.neighbors(1), 0)
     );
-
     CHECK("neighbors: vertex with no edges is empty", 2,
           !g2.neighbors(0).empty() && g2.neighbors(2).empty()
     );
@@ -112,92 +141,156 @@ void test_adjacency_list() {
 }
 
 // ===========================================================================
-// Section 2: DFS  (10 pts)
-//
-// Tests that a depth-first traversal starts at the requested vertex, visits
-// every vertex reachable in a connected graph, visits each vertex only once,
-// and never visits a vertex that isn't reachable from the start.
-void test_dfs() {
-    Graph g = make_diamond();
-    std::vector<int> order = g.dfs(0);
+// Section 2: save / load  (10 pts)
+void test_save_load() {
+    const std::string path = "test_save_load_tmp.txt";
 
-    CHECK("dfs: start vertex is visited first", 2,
-          !order.empty() && order.front() == 0
-    );
-    CHECK("dfs: visits every vertex in a connected graph", 3,
-          order.size() == 5
-    );
+    // Round trip: build a graph (with an isolated vertex), save it, load it
+    // back, and confirm the structure survived intact.
+    Graph g(5);
+    g.add_edge(0, 1);
+    g.add_edge(0, 2);
+    g.add_edge(1, 3);
+    // vertex 4 stays isolated - no edges at all
+    g.save_to_file(path);
+    Graph g2 = Graph::load_from_file(path);
 
-    std::set<int> unique_visited(order.begin(), order.end());
-    CHECK("dfs: each vertex appears exactly once", 2,
-          order.size() == 5 && unique_visited.size() == order.size()
+    CHECK("save/load: round trip preserves vertex_count", 2,
+          g2.vertex_count() == g.vertex_count() && g.vertex_count() > 0
     );
 
-    Graph g_with_island = make_diamond_with_isolated_vertex();
-    std::vector<int> order2 = g_with_island.dfs(0);
-    CHECK("dfs: unreachable vertices are excluded", 3,
-          order2.size() == 5 && !has(order2, 5)
+    bool neighbors_match = true;
+    for (int v = 0; v < g.vertex_count() && v < g2.vertex_count(); ++v) {
+        if (sorted_copy(g.neighbors(v)) != sorted_copy(g2.neighbors(v))) {
+            neighbors_match = false;
+        }
+    }
+    CHECK("save/load: round trip preserves every vertex's neighbor set", 3,
+          neighbors_match && g.vertex_count() > 0 && g2.vertex_count() > 0
     );
+
+    CHECK("save/load: isolated vertex stays isolated after round trip", 2,
+          g2.vertex_count() > 4 && g2.neighbors(4).empty()
+    );
+
+    std::remove(path.c_str());
+
+    // Load a hand-written file directly, independent of save_to_file, to
+    // confirm the parser itself is correct.
+    const std::string hand_path = "test_load_handwritten_tmp.txt";
+    {
+        std::ofstream out(hand_path);
+        out << "3\n";
+        out << "0 1\n";
+        out << "1 2\n";
+    }
+    Graph g3 = Graph::load_from_file(hand_path);
+    CHECK("load: hand-written edge list parses correctly", 3,
+          g3.vertex_count() == 3 &&
+          has(g3.neighbors(0), 1) && has(g3.neighbors(1), 0) &&
+          has(g3.neighbors(1), 2) && has(g3.neighbors(2), 1)
+    );
+    std::remove(hand_path.c_str());
 }
 
 // ===========================================================================
-// Section 3: BFS  (10 pts)
-//
-// Same shape of tests as DFS: correct start, full coverage of a connected
-// component, no duplicate visits, and unreachable vertices excluded.
-void test_bfs() {
-    Graph g = make_diamond();
-    std::vector<int> order = g.bfs(0);
+// Section 3: cycle detection  (10 pts)
+// void test_cycle_detection() {
+//     Graph tree = make_tree();
+//     CHECK("has_cycle: tree has no cycle", 2,
+//           tree.has_cycle() == false && tree.vertex_count() > 0
+//     );
 
-    CHECK("bfs: start vertex is visited first", 2,
-          !order.empty() && order.front() == 0
-    );
-    CHECK("bfs: visits every vertex in a connected graph", 3,
-          order.size() == 5
-    );
+//     Graph diamond = make_diamond();
+//     CHECK("has_cycle: diamond graph has a cycle", 2,
+//           diamond.has_cycle() == true && tree.vertex_count() > 0
+//     );
 
-    std::set<int> unique_visited(order.begin(), order.end());
-    CHECK("bfs: each vertex appears exactly once", 2,
-          order.size() == 5 && unique_visited.size() == order.size()
-    );
+//     Graph single(1);
+//     CHECK("has_cycle: single vertex, no edges, has no cycle", 2,
+//           single.has_cycle() == false && tree.vertex_count() > 0
+//     );
 
-    Graph g_with_island = make_diamond_with_isolated_vertex();
-    std::vector<int> order2 = g_with_island.bfs(0);
-    CHECK("bfs: unreachable vertices are excluded", 3,
-          order2.size() == 5 && !has(order2, 5)
-    );
-}
+//     Graph disc_no_cycle = make_disconnected_no_cycle();
+//     CHECK("has_cycle: disconnected forest has no cycle", 2,
+//           disc_no_cycle.has_cycle() == false && tree.vertex_count() > 0
+//     );
+
+//     Graph disc_with_cycle = make_disconnected_with_cycle();
+//     CHECK("has_cycle: cycle in one component of a disconnected graph is found", 2,
+//           disc_with_cycle.has_cycle() == true && tree.vertex_count() > 0
+//     );
+// }
 
 // ===========================================================================
-// Section 4: edge cases  (10 pts)
+// Section 3: cycle detection  (10 pts)
 //
-// Checks the smallest possible graph (a single vertex), confirms dfs() and
-// bfs() always agree on *which* vertices are reachable even though they may
-// disagree on order, and confirms BFS's defining property: vertices closer
-// to the start are visited before vertices farther away.
-void test_edge_cases() {
+// This is graded as a single all-or-nothing check rather than five separate
+// ones. Splitting it into independent checks would let a stub that always
+// returns true (or always returns false) bank partial credit, since roughly
+// half of the cases below expect each answer. Requiring every case to be
+// correct at once closes that loophole: a constant function fails at least
+// one case and scores 0, not ~50%. Each case is still logged individually so
+// you can see exactly which one is wrong.
+void test_cycle_detection() {
+    Graph tree             = make_tree();
+    Graph diamond           = make_diamond();
     Graph single(1);
-    CHECK("edge: single-vertex graph, dfs visits only itself", 2,
-          single.dfs(0).size() == 1 && single.dfs(0).front() == 0
-    );
-    CHECK("edge: single-vertex graph, bfs visits only itself", 2,
-          single.bfs(0).size() == 1 && single.bfs(0).front() == 0
-    );
+    Graph disc_no_cycle     = make_disconnected_no_cycle();
+    Graph disc_with_cycle   = make_disconnected_with_cycle();
 
+    bool tree_ok  = (tree.has_cycle() == false);
+    bool diamond_ok = (diamond.has_cycle() == true);
+    bool single_ok  = (single.has_cycle() == false);
+    bool disc_no_cycle_ok   = (disc_no_cycle.has_cycle() == false);
+    bool disc_with_cycle_ok = (disc_with_cycle.has_cycle() == true);
+
+    std::cout << "  [case] tree has no cycle: "
+              << (tree_ok ? "correct" : "WRONG") << "\n";
+    std::cout << "  [case] diamond graph has a cycle: "
+              << (diamond_ok ? "correct" : "WRONG") << "\n";
+    std::cout << "  [case] single vertex, no edges, has no cycle: "
+              << (single_ok ? "correct" : "WRONG") << "\n";
+    std::cout << "  [case] disconnected forest has no cycle: "
+              << (disc_no_cycle_ok ? "correct" : "WRONG") << "\n";
+    std::cout << "  [case] cycle in one component of a disconnected graph is found: "
+              << (disc_with_cycle_ok ? "correct" : "WRONG") << "\n";
+
+    CHECK("has_cycle: correctly classifies every case above (all must be correct)", 10,
+          tree_ok && diamond_ok && single_ok && disc_no_cycle_ok && disc_with_cycle_ok
+    );
+}
+#include <sstream>
+// ===========================================================================
+// Section 4: shortest path  (10 pts)
+void test_shortest_path() {
     Graph g = make_diamond();
-    std::vector<int> d = g.dfs(0);
-    std::vector<int> b = g.bfs(0);
-    std::set<int> d_set(d.begin(), d.end());
-    std::set<int> b_set(b.begin(), b.end());
-    CHECK("edge: dfs and bfs visit the same set of vertices", 3,
-          d_set == b_set && d_set.size() > 0
+
+    CHECK("shortest_path: start == end returns just that vertex", 2,
+          g.shortest_path(2, 2).size() == 1 && g.shortest_path(2, 2).front() == 2
     );
 
-    // In the diamond graph, vertices 1 and 2 are distance 1 from vertex 0,
-    // vertex 3 is distance 2, and vertex 4 is distance 3. BFS must visit
-    // every vertex at distance 1 before any vertex at distance 2, and so on.
-    CHECK("edge: bfs respects distance order (closer before farther)", 3,
-          pos(b, 1) < pos(b, 3) && pos(b, 2) < pos(b, 3) && pos(b, 3) < pos(b, 4)
+    std::vector<int> path = g.shortest_path(0, 4);
+    CHECK("shortest_path: diamond graph 0->4 has correct length and endpoints", 3,
+          path.size() == 4 && path.front() == 0 && path.back() == 4 
+    );
+
+    CHECK("shortest_path: every step of the returned path follows a real edge", 2,
+          is_valid_walk(g, path) && g.vertex_count() > 0
+    );
+
+    // Graph disc = make_disconnected_no_cycle();
+    // CHECK("shortest_path: no path across disconnected components returns empty", 3,
+    //       disc.shortest_path(0, 4).empty() && disc.vertex_count() > 0
+    // );
+    Graph disc = make_disconnected_no_cycle();
+    std::vector<int> unreachable_path = disc.shortest_path(0, 4);
+    std::vector<int> reachable_path   = disc.shortest_path(0, 2);
+    CHECK("shortest_path: distinguishes an unreachable vertex from a reachable one in the same graph", 3,
+          unreachable_path.empty() &&
+          reachable_path.size() == 3 &&
+          reachable_path.front() == 0 && reachable_path.back() == 2 &&
+          is_valid_walk(disc, reachable_path)
     );
 }
 
@@ -207,14 +300,14 @@ int main() {
     std::cout << "adjacency list tests\n";
     test_adjacency_list();
 
-    std::cout << "\nDFS tests\n";
-    test_dfs();
+    std::cout << "\nsave/load tests\n";
+    test_save_load();
 
-    std::cout << "\nBFS tests\n";
-    test_bfs();
+    std::cout << "\ncycle detection tests\n";
+    test_cycle_detection();
 
-    std::cout << "\nedge case tests\n";
-    test_edge_cases();
+    std::cout << "\nshortest path tests\n";
+    test_shortest_path();
 
     std::cout << "\n";
     std::cout << tests_passed << "/" << tests_run << " tests passed.\n";

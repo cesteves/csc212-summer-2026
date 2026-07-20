@@ -1,5 +1,5 @@
 // graph.h
-// Lab 10 - Graph Traversal: Adjacency List, DFS, and BFS
+// Lab 10 - Graphs: Adjacency List, Save/Load, Cycle Detection, and Shortest Path
 // CSC 212 Data Structures
 //
 // ===========================================================================
@@ -13,7 +13,8 @@
 
 #pragma once
 
-#include <vector>   // std::vector - adjacency list storage
+#include <string>
+#include <vector>
 
 class Graph {
 public:
@@ -40,27 +41,44 @@ public:
     // Does not modify the graph.
     const std::vector<int>& neighbors(int v) const;
 
-    // Performs a depth-first traversal starting at `start`, visiting every
-    // vertex reachable from `start` exactly once.
-    // Precondition:  0 <= start < vertex_count()
-    // Returns:       the vertices in the order they were first visited
-    //                (start is always first)
+    // Writes this graph to a text file as an edge list.
+    //
+    // File format:
+    //   line 1:            the number of vertices
+    //   every line after:  two integers "u v" naming one undirected edge
+    //
+    // Each undirected edge must be written exactly once (never both "u v"
+    // and "v u" for the same edge).
+    // Precondition:  `filename` names a path this program can write to.
     // Does not modify the graph.
-    std::vector<int> dfs(int start) const;
+    void save_to_file(const std::string& filename) const;
 
-    // Performs a breadth-first traversal starting at `start`, visiting every
-    // vertex reachable from `start` exactly once, nearest vertices first.
-    // Precondition:  0 <= start < vertex_count()
-    // Returns:       the vertices in the order they were first visited
-    //                (start is always first)
+    // Reads a graph from a text file in the format written by save_to_file()
+    // (or any file following that same format).
+    // Precondition:  `filename` names a readable file in the correct format.
+    // Returns: a new Graph containing every vertex and edge described by the file.
+    static Graph load_from_file(const std::string& filename);
+
+    // Returns: true if this graph (which may be disconnected) contains at
+    // least one cycle, false otherwise.
     // Does not modify the graph.
-    std::vector<int> bfs(int start) const;
+    bool has_cycle() const;
+
+    // Finds a shortest path (fewest edges) between `start` and `end`.
+    // Precondition:  0 <= start < vertex_count() and 0 <= end < vertex_count()
+    // Returns: the vertices on a shortest path from `start` to `end`, in
+    //          order, including both endpoints. If start == end, returns a
+    //          single-element vector containing just that vertex. If no
+    //          path exists, returns an empty vector.
+    // Does not modify the graph.
+    std::vector<int> shortest_path(int start, int end) const;
 
 private:
     std::vector<std::vector<int>> adj;  // adj[i] holds the neighbors of vertex i
 
-    // Recursive helper used by dfs(). Visits `v`, marks it visited in
-    // `visited`, records it in `order`, then recurses into every neighbor
-    // of `v` that has not yet been visited. [private helper]
-    void _dfs_visit(int v, std::vector<bool>& visited, std::vector<int>& order) const;
+    // Recursive helper used by has_cycle(). Visits `v` (arriving from
+    // `parent`, or -1 if `v` is the root of this traversal), marking it in
+    // `visited`. Returns true if a cycle is discovered anywhere in `v`'s
+    // connected component. [private helper]
+    bool _has_cycle_visit(int v, int parent, std::vector<bool>& visited) const;
 };
