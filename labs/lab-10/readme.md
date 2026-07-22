@@ -117,6 +117,7 @@ plain text file as an **edge list**, and read it back the same way.
 0 1
 0 2
 1 3
+2 3
 3 4
 ```
 
